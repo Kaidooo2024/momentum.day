@@ -197,13 +197,13 @@ select:focus {
 /* 优先级选择器选项样式 */
 .priority-select option[value="high"] {
     color: #000000;
-    background: #2c2c2c
+    background: #2c2c2c;
     font-weight: 600;
 }
 
 .priority-select option[value="medium"] {
-    color: #000000;
-    background: #2c2c2c
+    color: #4e4e4e;
+    background: #2c2c2c;
     font-weight: 600;
 }
 
