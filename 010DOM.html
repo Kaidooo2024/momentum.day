@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每天打卡器</title>
+    <!-- 引入MiSans Global字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=MiSans+Global:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- 引入外部CSS文件 -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>MOMENTUM · 引力</h1>
+            <p>记录你的日程，按日期打卡</p>
+        </div>
+
+        <div class="input-section">
+            <div class="input-tabs">
+                <button class="tab-btn active" data-tab="record">记录</button>
+                <button class="tab-btn" data-tab="task">任务</button>
+            </div>
+            
+            <!-- 记录表单 -->
+            <form id="textForm" class="input-form active">
+                <div class="form-group">
+                    <label for="textInput">输入你的文字：</label>
+                    <textarea id="textInput" placeholder="在这里输入你想记录的文字..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="dateInput">选择日期：</label>
+                    <input type="date" id="dateInput" required>
+                </div>
+                <button type="submit" class="btn">添加记录</button>
+            </form>
+            
+            <!-- 任务表单 -->
+            <form id="taskForm" class="input-form">
+                <div class="form-group">
+                    <label for="taskInput">输入任务内容：</label>
+                    <input type="text" id="taskInput" placeholder="输入你的任务..." required>
+                </div>
+                <div class="form-group">
+                    <label for="taskDateInput">选择日期：</label>
+                    <input type="date" id="taskDateInput" required>
+                </div>
+                <div class="form-group">
+                    <label for="taskPriority">优先级：</label>
+                    <select id="taskPriority" class="priority-select">
+                        <option value="high">●● 高优先级</option>
+                        <option value="medium" selected>● 中优先级</option>
+                        <option value="low">○ 低优先级</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn">添加任务</button>
+            </form>
+        </div>
+
+        <div class="display-section">
+            <!-- 当日日历 -->
+            <div class="daily-calendar-section">
+                <div class="daily-calendar-header">
+                    <h2>今日概览</h2>
+                    <div class="daily-navigation">
+                        <button id="prevDay" class="btn btn-small">‹</button>
+                        <span id="currentDay"></span>
+                        <button id="nextDay" class="btn btn-small">›</button>
+                    </div>
+                </div>
+                <div class="daily-calendar-content">
+                    <!-- 进度条区域 -->
+                    <div class="progress-section">
+                        <div class="progress-header">
+                            <div class="progress-title">
+                                <span class="progress-icon" id="progressIcon">●</span>
+                                <span id="progressTitle">今日任务进度</span>
+                            </div>
+                            <div class="progress-stats">
+                                <div class="progress-text" id="progressText">0 / 0 已完成</div>
+                                <div class="progress-percentage" id="progressPercentage">0%</div>
+                            </div>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="progressBar">
+                                <div class="progress-fill" id="progressFill">
+                                    <div class="progress-glow"></div>
+                                </div>
+                                <div class="progress-milestones" id="progressMilestones"></div>
+                            </div>
+                        </div>
+                        <div class="progress-motivation" id="progressMotivation">
+                            <div class="motivation-text" id="motivationText">开始你的任务之旅吧！</div>
+                            <div class="motivation-emoji" id="motivationEmoji">💪</div>
+                        </div>
+                    </div>
+                    
+                    <div class="daily-items" id="dailyItems">
+                        <!-- 当天的记录和任务将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 月历 -->
+            <div class="monthly-calendar-section">
+                <div class="calendar-header">
+                    <h2>月历打卡</h2>
+                    <div class="calendar-controls">
+                        <button id="prevMonth" class="btn btn-small">‹</button>
+                        <span id="currentMonth"></span>
+                        <button id="nextMonth" class="btn btn-small">›</button>
+                    </div>
+                </div>
+                <div id="stats" class="stats" style="display: none;">
+                    <div class="stat-item">
+                        <div class="stat-number" id="totalCount">0</div>
+                        <div class="stat-label">总记录数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="dateCount">0</div>
+                        <div class="stat-label">不同日期数</div>
+                    </div>
+                </div>
+                <div id="calendar" class="calendar"></div>
+                
+                <!-- 月度打卡进度条 -->
+                <div class="monthly-progress-section">
+                    <div class="monthly-progress-header">
+                        <div class="monthly-progress-title">
+                            <span class="monthly-progress-icon">●</span>
+                            <span>本月打卡进度</span>
+                        </div>
+                        <div class="monthly-progress-stats">
+                            <div class="monthly-progress-text" id="monthlyProgressText">0 / 0 天完成</div>
+                            <div class="monthly-progress-percentage" id="monthlyProgressPercentage">0%</div>
+                        </div>
+                    </div>
+                    <div class="monthly-progress-bar-container">
+                        <div class="monthly-progress-bar" id="monthlyProgressBar">
+                            <div class="monthly-progress-fill" id="monthlyProgressFill">
+                                <div class="monthly-progress-glow"></div>
+                            </div>
+                            <div class="monthly-progress-days" id="monthlyProgressDays"></div>
+                        </div>
+                    </div>
+                    <div class="monthly-progress-motivation" id="monthlyProgressMotivation">
+                        <div class="monthly-motivation-text" id="monthlyMotivationText">开始你的月度打卡之旅吧！</div>
+                        <div class="monthly-motivation-emoji" id="monthlyMotivationEmoji">●</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 记录详情模态框 -->
+        <div id="recordModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modalDate"></h3>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <!-- 记录内容将在这里显示 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入外部JavaScript文件 -->
+    <script src="script.js"></script>
+</body>
+</html>
