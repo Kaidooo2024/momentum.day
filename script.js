@@ -182,22 +182,22 @@ class FirebaseManager {
             this.showSyncStatus('正在加载数据...');
             
             // 加载记录数据
-            const recordsQuery = query(
-                collection(this.db, 'users', this.currentUser.uid, 'records'),
-                orderBy('timestamp', 'desc')
+            const recordsQuery = this.query(
+                this.collection(this.db, 'users', this.currentUser.uid, 'records'),
+                this.orderBy('timestamp', 'desc')
             );
-            const recordsSnapshot = await getDocs(recordsQuery);
+            const recordsSnapshot = await this.getDocs(recordsQuery);
             const records = recordsSnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
 
             // 加载任务数据
-            const tasksQuery = query(
-                collection(this.db, 'users', this.currentUser.uid, 'tasks'),
-                orderBy('timestamp', 'desc')
+            const tasksQuery = this.query(
+                this.collection(this.db, 'users', this.currentUser.uid, 'tasks'),
+                this.orderBy('timestamp', 'desc')
             );
-            const tasksSnapshot = await getDocs(tasksQuery);
+            const tasksSnapshot = await this.getDocs(tasksQuery);
             const tasks = tasksSnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
@@ -235,8 +235,8 @@ class FirebaseManager {
         if (!this.currentUser) return null;
 
         try {
-            const docRef = await addDoc(
-                collection(this.db, 'users', this.currentUser.uid, 'records'),
+            const docRef = await this.addDoc(
+                this.collection(this.db, 'users', this.currentUser.uid, 'records'),
                 recordData
             );
             return docRef.id;
@@ -250,8 +250,8 @@ class FirebaseManager {
         if (!this.currentUser) return null;
 
         try {
-            const docRef = await addDoc(
-                collection(this.db, 'users', this.currentUser.uid, 'tasks'),
+            const docRef = await this.addDoc(
+                this.collection(this.db, 'users', this.currentUser.uid, 'tasks'),
                 taskData
             );
             return docRef.id;
@@ -265,8 +265,8 @@ class FirebaseManager {
         if (!this.currentUser) return;
 
         try {
-            await updateDoc(
-                doc(this.db, 'users', this.currentUser.uid, 'tasks', taskId),
+            await this.updateDoc(
+                this.doc(this.db, 'users', this.currentUser.uid, 'tasks', taskId),
                 updateData
             );
         } catch (error) {
@@ -279,8 +279,8 @@ class FirebaseManager {
         if (!this.currentUser) return;
 
         try {
-            await deleteDoc(
-                doc(this.db, 'users', this.currentUser.uid, 'records', recordId)
+            await this.deleteDoc(
+                this.doc(this.db, 'users', this.currentUser.uid, 'records', recordId)
             );
         } catch (error) {
             console.error('删除记录失败:', error);
@@ -292,8 +292,8 @@ class FirebaseManager {
         if (!this.currentUser) return;
 
         try {
-            await deleteDoc(
-                doc(this.db, 'users', this.currentUser.uid, 'tasks', taskId)
+            await this.deleteDoc(
+                this.doc(this.db, 'users', this.currentUser.uid, 'tasks', taskId)
             );
         } catch (error) {
             console.error('删除任务失败:', error);
