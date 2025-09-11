@@ -1,5 +1,5 @@
 {
-  "name": "momentum-tracker",
+  "name": "momentum.day",
   "version": "1.0.0",
   "description": "A daily task and record tracking app with Firebase integration",
   "main": "010DOM.html",
