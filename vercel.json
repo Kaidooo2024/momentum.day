@@ -15,5 +15,11 @@
       "src": "/test",
       "dest": "/test-firebase.html"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/index.html"
+    }
   ]
 }
