@@ -1,7 +1,306 @@
 /**
  * 日期文字记录器 - JavaScript模块
  * 使用DOM操作管理用户输入的文字记录
+ * 集成Firebase进行数据同步和用户认证
  */
+
+/**
+ * Firebase数据管理类
+ */
+class FirebaseManager {
+    constructor() {
+        this.isInitialized = false;
+        this.currentUser = null;
+        this.init();
+    }
+
+    async init() {
+        // 等待Firebase加载完成
+        while (!window.firebase) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        this.auth = window.firebase.auth;
+        this.db = window.firebase.db;
+        this.provider = window.firebase.provider;
+        this.signInWithPopup = window.firebase.signInWithPopup;
+        this.signInWithRedirect = window.firebase.signInWithRedirect;
+        this.getRedirectResult = window.firebase.getRedirectResult;
+        this.signOut = window.firebase.signOut;
+        this.onAuthStateChanged = window.firebase.onAuthStateChanged;
+        this.collection = window.firebase.collection;
+        this.doc = window.firebase.doc;
+        this.addDoc = window.firebase.addDoc;
+        this.updateDoc = window.firebase.updateDoc;
+        this.deleteDoc = window.firebase.deleteDoc;
+        this.getDocs = window.firebase.getDocs;
+        this.query = window.firebase.query;
+        this.where = window.firebase.where;
+        this.orderBy = window.firebase.orderBy;
+        this.onSnapshot = window.firebase.onSnapshot;
+        
+        this.isInitialized = true;
+        this.setupAuthListener();
+        this.handleRedirectResult();
+    }
+
+    setupAuthListener() {
+        this.onAuthStateChanged(this.auth, (user) => {
+            this.currentUser = user;
+            this.updateAuthUI(user);
+            
+            if (user) {
+                console.log('用户已登录:', user.email);
+                this.loadUserData();
+            } else {
+                console.log('用户已登出');
+                this.clearUserData();
+            }
+        });
+    }
+
+    async handleRedirectResult() {
+        try {
+            const result = await this.getRedirectResult(this.auth);
+            if (result) {
+                this.currentUser = result.user;
+                this.showSyncStatus('登录成功！');
+                setTimeout(() => this.hideSyncStatus(), 2000);
+                console.log('重定向登录成功:', result.user.email);
+            }
+        } catch (error) {
+            console.error('处理重定向登录结果失败:', error);
+            this.showSyncStatus('登录失败，请重试');
+            setTimeout(() => this.hideSyncStatus(), 3000);
+        }
+    }
+
+    async signInWithGoogle() {
+        try {
+            this.showSyncStatus('正在登录...');
+            
+            // 首先尝试弹窗登录
+            try {
+                const result = await this.signInWithPopup(this.auth, this.provider);
+                this.currentUser = result.user;
+                this.showSyncStatus('登录成功！');
+                setTimeout(() => this.hideSyncStatus(), 2000);
+                return result.user;
+            } catch (popupError) {
+                console.log('弹窗登录失败，尝试重定向登录:', popupError);
+                
+                // 如果弹窗被阻止，使用重定向登录
+                if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
+                    this.showSyncStatus('正在跳转到Google登录...');
+                    await this.signInWithRedirect(this.auth, this.provider);
+                    return null; // 重定向后页面会刷新，不需要返回值
+                } else {
+                    throw popupError;
+                }
+            }
+        } catch (error) {
+            console.error('登录失败:', error);
+            let errorMessage = '登录失败，请重试';
+            
+            // 根据错误类型提供更具体的错误信息
+            switch (error.code) {
+                case 'auth/popup-blocked':
+                    errorMessage = '弹窗被阻止，请允许弹窗后重试';
+                    break;
+                case 'auth/popup-closed-by-user':
+                    errorMessage = '登录被取消';
+                    break;
+                case 'auth/network-request-failed':
+                    errorMessage = '网络连接失败，请检查网络';
+                    break;
+                case 'auth/too-many-requests':
+                    errorMessage = '请求过于频繁，请稍后重试';
+                    break;
+                case 'auth/operation-not-allowed':
+                    errorMessage = 'Google登录未启用，请检查Firebase配置';
+                    break;
+                case 'auth/unauthorized-domain':
+                    errorMessage = '域名未授权，请检查Firebase配置';
+                    break;
+            }
+            
+            this.showSyncStatus(errorMessage);
+            setTimeout(() => this.hideSyncStatus(), 5000);
+            throw error;
+        }
+    }
+
+    async signOutUser() {
+        try {
+            this.showSyncStatus('正在退出...');
+            await this.signOut(this.auth);
+            this.currentUser = null;
+            this.showSyncStatus('已退出登录');
+            setTimeout(() => this.hideSyncStatus(), 2000);
+        } catch (error) {
+            console.error('退出失败:', error);
+            this.showSyncStatus('退出失败，请重试');
+            setTimeout(() => this.hideSyncStatus(), 3000);
+        }
+    }
+
+    updateAuthUI(user) {
+        const loginPrompt = document.getElementById('loginPrompt');
+        const userInfo = document.getElementById('userInfo');
+        const userName = document.getElementById('userName');
+        const userEmail = document.getElementById('userEmail');
+        const userAvatar = document.getElementById('userAvatar');
+
+        if (user) {
+            loginPrompt.style.display = 'none';
+            userInfo.style.display = 'flex';
+            userName.textContent = user.displayName || '用户';
+            userEmail.textContent = user.email;
+            userAvatar.src = user.photoURL || 'https://via.placeholder.com/40';
+        } else {
+            loginPrompt.style.display = 'block';
+            userInfo.style.display = 'none';
+        }
+    }
+
+    showSyncStatus(message) {
+        const syncStatus = document.getElementById('syncStatus');
+        const syncText = document.getElementById('syncText');
+        syncText.textContent = message;
+        syncStatus.style.display = 'block';
+    }
+
+    hideSyncStatus() {
+        const syncStatus = document.getElementById('syncStatus');
+        syncStatus.style.display = 'none';
+    }
+
+    async loadUserData() {
+        if (!this.currentUser) return;
+
+        try {
+            this.showSyncStatus('正在加载数据...');
+            
+            // 加载记录数据
+            const recordsQuery = query(
+                collection(this.db, 'users', this.currentUser.uid, 'records'),
+                orderBy('timestamp', 'desc')
+            );
+            const recordsSnapshot = await getDocs(recordsQuery);
+            const records = recordsSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            // 加载任务数据
+            const tasksQuery = query(
+                collection(this.db, 'users', this.currentUser.uid, 'tasks'),
+                orderBy('timestamp', 'desc')
+            );
+            const tasksSnapshot = await getDocs(tasksQuery);
+            const tasks = tasksSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            // 更新TextManager的数据
+            if (window.textManager) {
+                window.textManager.texts = records;
+                window.textManager.tasks = tasks;
+                window.textManager.updateDisplay();
+                window.textManager.updateDailyCalendar();
+                window.textManager.updateMonthlyProgress();
+            }
+
+            this.showSyncStatus('数据加载完成');
+            setTimeout(() => this.hideSyncStatus(), 2000);
+        } catch (error) {
+            console.error('加载数据失败:', error);
+            this.showSyncStatus('加载数据失败');
+            setTimeout(() => this.hideSyncStatus(), 3000);
+        }
+    }
+
+    clearUserData() {
+        if (window.textManager) {
+            window.textManager.texts = [];
+            window.textManager.tasks = [];
+            window.textManager.updateDisplay();
+            window.textManager.updateDailyCalendar();
+            window.textManager.updateMonthlyProgress();
+        }
+    }
+
+    async saveRecord(recordData) {
+        if (!this.currentUser) return null;
+
+        try {
+            const docRef = await addDoc(
+                collection(this.db, 'users', this.currentUser.uid, 'records'),
+                recordData
+            );
+            return docRef.id;
+        } catch (error) {
+            console.error('保存记录失败:', error);
+            throw error;
+        }
+    }
+
+    async saveTask(taskData) {
+        if (!this.currentUser) return null;
+
+        try {
+            const docRef = await addDoc(
+                collection(this.db, 'users', this.currentUser.uid, 'tasks'),
+                taskData
+            );
+            return docRef.id;
+        } catch (error) {
+            console.error('保存任务失败:', error);
+            throw error;
+        }
+    }
+
+    async updateTask(taskId, updateData) {
+        if (!this.currentUser) return;
+
+        try {
+            await updateDoc(
+                doc(this.db, 'users', this.currentUser.uid, 'tasks', taskId),
+                updateData
+            );
+        } catch (error) {
+            console.error('更新任务失败:', error);
+            throw error;
+        }
+    }
+
+    async deleteRecord(recordId) {
+        if (!this.currentUser) return;
+
+        try {
+            await deleteDoc(
+                doc(this.db, 'users', this.currentUser.uid, 'records', recordId)
+            );
+        } catch (error) {
+            console.error('删除记录失败:', error);
+            throw error;
+        }
+    }
+
+    async deleteTask(taskId) {
+        if (!this.currentUser) return;
+
+        try {
+            await deleteDoc(
+                doc(this.db, 'users', this.currentUser.uid, 'tasks', taskId)
+            );
+        } catch (error) {
+            console.error('删除任务失败:', error);
+            throw error;
+        }
+    }
+}
 
 class TextManager {
     constructor() {
@@ -9,9 +308,19 @@ class TextManager {
         this.tasks = this.loadTasksFromStorage();
         this.currentDate = new Date();
         this.selectedDate = new Date(); // 当日日历选中的日期
+        this.firebaseManager = null; // Firebase管理器实例
         this.initializeEventListeners();
         this.updateDisplay();
         this.updateDailyCalendar();
+        this.initFirebase();
+    }
+
+    async initFirebase() {
+        // 等待Firebase管理器初始化
+        while (!window.firebaseManager) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        this.firebaseManager = window.firebaseManager;
     }
 
     /**
@@ -93,7 +402,7 @@ class TextManager {
     /**
      * 添加新的文字记录
      */
-    addText() {
+    async addText() {
         const textInput = document.getElementById('textInput');
         const dateInput = document.getElementById('dateInput');
         
@@ -113,22 +422,35 @@ class TextManager {
             type: 'record'
         };
         
-        this.texts.push(textItem);
-        this.saveToStorage();
-        this.updateDisplay();
-        this.updateDailyCalendar();
-        
-        // 清空输入框
-        textInput.value = '';
-        
-        // 显示添加成功提示
-        this.showNotification('记录添加成功！', 'success');
+        try {
+            // 如果用户已登录，保存到Firebase
+            if (this.firebaseManager && this.firebaseManager.currentUser) {
+                const firebaseId = await this.firebaseManager.saveRecord(textItem);
+                textItem.firebaseId = firebaseId;
+                this.firebaseManager.showSyncStatus('记录已同步');
+                setTimeout(() => this.firebaseManager.hideSyncStatus(), 2000);
+            }
+            
+            this.texts.push(textItem);
+            this.saveToStorage();
+            this.updateDisplay();
+            this.updateDailyCalendar();
+            
+            // 清空输入框
+            textInput.value = '';
+            
+            // 显示添加成功提示
+            this.showNotification('记录添加成功！', 'success');
+        } catch (error) {
+            console.error('保存记录失败:', error);
+            this.showNotification('保存失败，请检查网络连接', 'error');
+        }
     }
 
     /**
      * 添加新的任务
      */
-    addTask() {
+    async addTask() {
         const taskInput = document.getElementById('taskInput');
         const taskDateInput = document.getElementById('taskDateInput');
         const taskPriority = document.getElementById('taskPriority');
@@ -152,17 +474,30 @@ class TextManager {
             completed: false
         };
         
-        this.tasks.push(taskItem);
-        this.saveTasksToStorage();
-        this.updateDisplay();
-        this.updateDailyCalendar();
-        this.updateMonthlyProgress();
-        
-        // 清空输入框
-        taskInput.value = '';
-        
-        // 显示添加成功提示
-        this.showNotification('任务添加成功！', 'success');
+        try {
+            // 如果用户已登录，保存到Firebase
+            if (this.firebaseManager && this.firebaseManager.currentUser) {
+                const firebaseId = await this.firebaseManager.saveTask(taskItem);
+                taskItem.firebaseId = firebaseId;
+                this.firebaseManager.showSyncStatus('任务已同步');
+                setTimeout(() => this.firebaseManager.hideSyncStatus(), 2000);
+            }
+            
+            this.tasks.push(taskItem);
+            this.saveTasksToStorage();
+            this.updateDisplay();
+            this.updateDailyCalendar();
+            this.updateMonthlyProgress();
+            
+            // 清空输入框
+            taskInput.value = '';
+            
+            // 显示添加成功提示
+            this.showNotification('任务添加成功！', 'success');
+        } catch (error) {
+            console.error('保存任务失败:', error);
+            this.showNotification('保存失败，请检查网络连接', 'error');
+        }
     }
 
     /**
@@ -186,13 +521,27 @@ class TextManager {
      * 删除指定的文字记录
      * @param {number} id - 记录的唯一ID
      */
-    deleteText(id) {
+    async deleteText(id) {
         if (confirm('确定要删除这条记录吗？')) {
-            this.texts = this.texts.filter(item => item.id !== id);
-            this.saveToStorage();
-            this.updateDisplay();
-            this.updateDailyCalendar();
-            this.showNotification('记录已删除', 'info');
+            try {
+                const item = this.texts.find(item => item.id === id);
+                
+                // 如果用户已登录且有Firebase ID，从Firebase删除
+                if (this.firebaseManager && this.firebaseManager.currentUser && item && item.firebaseId) {
+                    await this.firebaseManager.deleteRecord(item.firebaseId);
+                    this.firebaseManager.showSyncStatus('记录已从云端删除');
+                    setTimeout(() => this.firebaseManager.hideSyncStatus(), 2000);
+                }
+                
+                this.texts = this.texts.filter(item => item.id !== id);
+                this.saveToStorage();
+                this.updateDisplay();
+                this.updateDailyCalendar();
+                this.showNotification('记录已删除', 'info');
+            } catch (error) {
+                console.error('删除记录失败:', error);
+                this.showNotification('删除失败，请检查网络连接', 'error');
+            }
         }
     }
 
@@ -200,14 +549,28 @@ class TextManager {
      * 删除指定的任务
      * @param {number} id - 任务的唯一ID
      */
-    deleteTask(id) {
+    async deleteTask(id) {
         if (confirm('确定要删除这个任务吗？')) {
-            this.tasks = this.tasks.filter(item => item.id !== id);
-            this.saveTasksToStorage();
-            this.updateDisplay();
-            this.updateDailyCalendar();
-            this.updateMonthlyProgress();
-            this.showNotification('任务已删除', 'info');
+            try {
+                const item = this.tasks.find(item => item.id === id);
+                
+                // 如果用户已登录且有Firebase ID，从Firebase删除
+                if (this.firebaseManager && this.firebaseManager.currentUser && item && item.firebaseId) {
+                    await this.firebaseManager.deleteTask(item.firebaseId);
+                    this.firebaseManager.showSyncStatus('任务已从云端删除');
+                    setTimeout(() => this.firebaseManager.hideSyncStatus(), 2000);
+                }
+                
+                this.tasks = this.tasks.filter(item => item.id !== id);
+                this.saveTasksToStorage();
+                this.updateDisplay();
+                this.updateDailyCalendar();
+                this.updateMonthlyProgress();
+                this.showNotification('任务已删除', 'info');
+            } catch (error) {
+                console.error('删除任务失败:', error);
+                this.showNotification('删除失败，请检查网络连接', 'error');
+            }
         }
     }
 
@@ -215,15 +578,29 @@ class TextManager {
      * 切换任务完成状态
      * @param {number} id - 任务的唯一ID
      */
-    toggleTask(id) {
+    async toggleTask(id) {
         const task = this.tasks.find(item => item.id === id);
         if (task) {
-            task.completed = !task.completed;
-            this.saveTasksToStorage();
-            this.updateDisplay();
-            this.updateDailyCalendar();
-            this.updateMonthlyProgress();
-            this.showNotification(task.completed ? '任务已完成' : '任务已标记为未完成', 'success');
+            try {
+                const newCompleted = !task.completed;
+                
+                // 如果用户已登录且有Firebase ID，更新Firebase
+                if (this.firebaseManager && this.firebaseManager.currentUser && task.firebaseId) {
+                    await this.firebaseManager.updateTask(task.firebaseId, { completed: newCompleted });
+                    this.firebaseManager.showSyncStatus('任务状态已同步');
+                    setTimeout(() => this.firebaseManager.hideSyncStatus(), 2000);
+                }
+                
+                task.completed = newCompleted;
+                this.saveTasksToStorage();
+                this.updateDisplay();
+                this.updateDailyCalendar();
+                this.updateMonthlyProgress();
+                this.showNotification(task.completed ? '任务已完成' : '任务已标记为未完成', 'success');
+            } catch (error) {
+                console.error('更新任务失败:', error);
+                this.showNotification('更新失败，请检查网络连接', 'error');
+            }
         }
     }
 
@@ -1058,11 +1435,47 @@ class TextManager {
 
 // 全局变量
 let textManager;
+let firebaseManager;
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
+    // 初始化Firebase管理器
+    firebaseManager = new FirebaseManager();
+    window.firebaseManager = firebaseManager;
+    
+    // 初始化文本管理器
     textManager = new TextManager();
+    window.textManager = textManager;
+    
+    // 设置登录按钮事件监听器
+    setupAuthEventListeners();
 });
+
+// 设置认证相关的事件监听器
+function setupAuthEventListeners() {
+    const googleLoginBtn = document.getElementById('googleLoginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    
+    if (googleLoginBtn) {
+        googleLoginBtn.addEventListener('click', async () => {
+            try {
+                await firebaseManager.signInWithGoogle();
+            } catch (error) {
+                console.error('登录失败:', error);
+            }
+        });
+    }
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await firebaseManager.signOutUser();
+            } catch (error) {
+                console.error('退出失败:', error);
+            }
+        });
+    }
+}
 
 // 导出到全局作用域（用于HTML中的onclick事件）
 window.textManager = textManager;

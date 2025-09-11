@@ -1,0 +1,13 @@
+{
+  "name": "momentum-tracker",
+  "version": "1.0.0",
+  "description": "A daily task and record tracking app with Firebase integration",
+  "main": "010DOM.html",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "dev": "python -m http.server 8000"
+  },
+  "keywords": ["productivity", "tracking", "firebase", "google-auth"],
+  "author": "Your Name",
+  "license": "MIT"
+}

@@ -1707,3 +1707,172 @@ select:focus {
         font-size: 0.5em;
     }
 }
+
+/* 认证相关样式 */
+.auth-section {
+    margin-top: 20px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.login-prompt {
+    text-align: center;
+}
+
+.login-prompt p {
+    margin-bottom: 15px;
+    color: #6c757d;
+    font-size: 1.1em;
+    font-weight: 400;
+}
+
+.google-login-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: #ffffff;
+    color: #333;
+    border: 1px solid #dadce0;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.google-login-btn:hover {
+    background: #f8f9fa;
+    border-color: #c1c7cd;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    transform: translateY(-1px);
+}
+
+.google-icon {
+    flex-shrink: 0;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.1);
+    object-fit: cover;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.user-name {
+    font-weight: 600;
+    color: #2c2c2c;
+    font-size: 1em;
+}
+
+.user-email {
+    font-size: 0.9em;
+    color: #6c757d;
+    font-weight: 400;
+}
+
+.logout-btn {
+    background: #ff4757;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(255, 71, 87, 0.3);
+}
+
+.logout-btn:hover {
+    background: #ff3742;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(255, 71, 87, 0.4);
+}
+
+/* 同步状态样式 */
+.sync-status {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0,0,0,0.05);
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin: 10px 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    animation: slideDown 0.3s ease;
+}
+
+.sync-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #6c757d;
+    font-size: 0.9em;
+    font-weight: 500;
+}
+
+.sync-icon {
+    animation: spin 1s linear infinite;
+    font-size: 1.2em;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 响应式设计 - 认证部分 */
+@media (max-width: 768px) {
+    .user-info {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+    
+    .user-profile {
+        justify-content: center;
+    }
+    
+    .auth-section {
+        padding: 15px;
+    }
+    
+    .google-login-btn {
+        padding: 10px 20px;
+        font-size: 14px;
+    }
+}
