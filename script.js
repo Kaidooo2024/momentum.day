@@ -399,7 +399,9 @@ class AIAssistant {
                     <div id="aiChatMessages" class="ai-chat-messages">
                         <div class="ai-message ai-message-bot">
                             <div class="ai-message-content">
-                                你好！我是你的AI日程管理助手小智，专门帮助你分析日程、规划时间、提升效率。有什么日程管理方面的问题需要我帮助吗？
+                                你好！我是你的AI日程管理助手小智，专门帮助你分析日程、规划时间、提升效率。
+
+有什么日程管理方面的问题需要我帮助吗？
                             </div>
                         </div>
                     </div>
@@ -614,6 +616,7 @@ ${records.slice(0, 5).map(r => `- ${r.date}: ${r.text}`).join('\n') || '暂无�
 - 建议：具体、可操作、符合用户习惯
 - 个性化：${personalizedGreeting}，${workStyleAdvice}
 - 回复格式：简洁有组织，使用标题、列表、重点标记等让信息更清晰
+- 段落格式：使用双换行符分隔段落，单换行符分隔列表项
 
 ## 特殊命令格式
 如果用户要求设置个人偏好，请以JSON格式返回：
@@ -639,7 +642,9 @@ ${records.slice(0, 5).map(r => `- ${r.date}: ${r.text}`).join('\n') || '暂无�
 ## 当前对话
 用户说：${message}
 
-请以私人助理的身份，基于以上信息给出贴心的回复和建议。回复要简洁有组织，使用标题、列表、重点标记等让信息更清晰。`;
+请以私人助理的身份，基于以上信息给出贴心的回复和建议。回复要简洁有组织，使用标题、列表、重点标记等让信息更清晰。
+
+注意：请使用双换行符（两个换行）来分隔不同的段落，使用单换行符来分隔列表项，这样可以让回复更加清晰易读。`;
     }
 
     analyzeWorkPatterns(tasks, records) {
@@ -765,13 +770,34 @@ ${records.slice(0, 5).map(r => `- ${r.date}: ${r.text}`).join('\n') || '暂无�
         
         const contentDiv = document.createElement('div');
         contentDiv.className = 'ai-message-content';
-        contentDiv.textContent = content;
+        
+        // 处理内容格式，支持段落和换行
+        const formattedContent = this.formatMessageContent(content);
+        contentDiv.innerHTML = formattedContent;
         
         messageDiv.appendChild(contentDiv);
         chatMessages.appendChild(messageDiv);
         
         // 滚动到底部
         chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    formatMessageContent(content) {
+        // 将换行符转换为HTML段落
+        return content
+            .split('\n\n')  // 按双换行符分割段落
+            .map(paragraph => {
+                if (paragraph.trim() === '') return '';
+                // 处理单行换行符
+                const formattedParagraph = paragraph
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line !== '')
+                    .join('<br>');
+                return `<p>${formattedParagraph}</p>`;
+            })
+            .filter(paragraph => paragraph !== '')
+            .join('');
     }
 
     showLoading() {

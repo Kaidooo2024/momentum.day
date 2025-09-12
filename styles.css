@@ -1938,7 +1938,7 @@ select:focus {
     backdrop-filter: none;
     border: none;
     box-shadow: none;
-    height: 400px;
+    height: 600px;
     display: flex;
     flex-direction: column;
 }
@@ -1972,11 +1972,25 @@ select:focus {
     border-radius: 18px;
     max-width: 80%;
     font-size: 0.9rem;
-    line-height: 1.5;
+    line-height: 1.6;
     backdrop-filter: blur(10px);
     border: 1px solid rgba(0,0,0,0.05);
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     color: #2c2c2c;
+    word-wrap: break-word;
+}
+
+.ai-message-content p {
+    margin: 0 0 12px 0;
+    padding: 0;
+}
+
+.ai-message-content p:last-child {
+    margin-bottom: 0;
+}
+
+.ai-message-content br {
+    line-height: 1.8;
 }
 
 .ai-message-user .ai-message-content {
@@ -2254,7 +2268,7 @@ select:focus {
     
     .ai-chat-container {
         padding: 15px;
-        height: 350px;
+        height: 500px;
     }
     
     .ai-chat-messages {
