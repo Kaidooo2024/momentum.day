@@ -2,6 +2,7 @@
  * 日期文字记录器 - JavaScript模块
  * 使用DOM操作管理用户输入的文字记录
  * 集成Firebase进行数据同步和用户认证
+ * 集成Google Gemini AI进行智能任务安排和日程管理
  */
 
 /**
@@ -302,6 +303,524 @@ class FirebaseManager {
     }
 }
 
+/**
+ * Google Gemini AI助手管理类
+ */
+class AIAssistant {
+    constructor() {
+        this.apiKey = null; // 需要用户配置API密钥
+        this.isInitialized = false;
+        this.chatHistory = [];
+        this.userPreferences = this.loadUserPreferences();
+        this.init();
+    }
+
+    async init() {
+        // 等待DOM加载完成
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // 检查是否有存储的API密钥
+        this.apiKey = localStorage.getItem('gemini_api_key');
+        if (this.apiKey) {
+            this.isInitialized = true;
+            this.initializeAIChat();
+            console.log('Gemini AI助手已初始化');
+        } else {
+            this.showApiKeyPrompt();
+        }
+    }
+
+    showApiKeyPrompt() {
+        const aiForm = document.getElementById('aiForm');
+        if (aiForm) {
+            const promptHtml = `
+                <div class="ai-api-prompt">
+                    <div class="ai-api-icon">🔑</div>
+                    <h3>配置Google Gemini API</h3>
+                    <p>要使用AI助手功能，请先配置您的Google Gemini API密钥：</p>
+                    <div class="api-input-group">
+                        <input type="password" id="apiKeyInput" placeholder="输入您的Gemini API密钥" />
+                        <button id="saveApiKeyBtn" class="btn">保存密钥</button>
+                    </div>
+                    <div class="api-help">
+                        <p>如何获取API密钥：</p>
+                        <ol>
+                            <li>访问 <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a></li>
+                            <li>登录您的Google账户</li>
+                            <li>创建新的API密钥</li>
+                            <li>复制密钥并粘贴到上方输入框</li>
+                        </ol>
+                    </div>
+                </div>
+            `;
+            aiForm.innerHTML = promptHtml;
+            this.setupApiKeyEventListeners();
+        }
+    }
+
+    setupApiKeyEventListeners() {
+        const saveBtn = document.getElementById('saveApiKeyBtn');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        
+        if (saveBtn && apiKeyInput) {
+            saveBtn.addEventListener('click', async () => {
+                const apiKey = apiKeyInput.value.trim();
+                if (apiKey) {
+                    // 验证API密钥
+                    const isValid = await this.validateApiKey(apiKey);
+                    if (isValid) {
+                        this.apiKey = apiKey;
+                        localStorage.setItem('gemini_api_key', apiKey);
+                        this.isInitialized = true;
+                        this.initializeAIChat();
+                        console.log('API密钥已保存并验证成功');
+                    } else {
+                        alert('API密钥无效，请检查密钥是否正确');
+                    }
+                } else {
+                    alert('请输入有效的API密钥');
+                }
+            });
+
+            apiKeyInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    saveBtn.click();
+                }
+            });
+        }
+    }
+
+    initializeAIChat() {
+        const aiForm = document.getElementById('aiForm');
+        if (aiForm) {
+            // 恢复AI聊天界面
+            aiForm.innerHTML = `
+                <div class="ai-chat-container">
+                    <div id="aiChatMessages" class="ai-chat-messages">
+                        <div class="ai-message ai-message-bot">
+                            <div class="ai-message-content">
+                                你好！我是你的AI日程管理助手小智，专门帮助你分析日程、规划时间、提升效率。有什么日程管理方面的问题需要我帮助吗？
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="ai-input-container">
+                        <div class="ai-input-wrapper">
+                            <textarea id="aiInput" placeholder="输入你的需求..." rows="2"></textarea>
+                            <button id="aiSendBtn" class="ai-send-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                                    <path d="M2 21L23 12L2 3V10L17 12L2 14V21Z" fill="currentColor"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            this.setupChatEventListeners();
+        }
+    }
+
+    setupChatEventListeners() {
+        const sendBtn = document.getElementById('aiSendBtn');
+        const aiInput = document.getElementById('aiInput');
+
+        if (sendBtn && aiInput) {
+            sendBtn.addEventListener('click', () => {
+                this.sendMessage();
+            });
+
+            aiInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
+                }
+            });
+        }
+    }
+
+    async sendMessage() {
+        const aiInput = document.getElementById('aiInput');
+        const message = aiInput.value.trim();
+        
+        if (!message) return;
+
+        // 显示用户消息
+        this.addMessage(message, 'user');
+        aiInput.value = '';
+
+        // 显示加载状态
+        this.showLoading();
+
+        try {
+            // 获取用户的任务和记录数据
+            const userData = this.getUserData();
+            
+            // 调用Gemini API
+            const response = await this.callGeminiAPI(message, userData);
+            
+            // 隐藏加载状态
+            this.hideLoading();
+            
+            // 显示AI回复
+            this.addMessage(response, 'bot');
+            
+            // 检查是否需要执行特定操作
+            this.handleAIResponse(response);
+            
+            // 智能任务分析
+            
+        } catch (error) {
+            console.error('AI请求失败:', error);
+            this.hideLoading();
+            this.addMessage('抱歉，AI助手暂时无法响应。请检查网络连接或稍后重试。', 'bot');
+        }
+    }
+
+    getUserData() {
+        const textManager = window.textManager;
+        if (!textManager) return { tasks: [], records: [] };
+
+        const today = new Date().toISOString().split('T')[0];
+        const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        return {
+            tasks: textManager.tasks || [],
+            records: textManager.texts || [],
+            today: today,
+            tomorrow: tomorrow,
+            currentDate: new Date().toLocaleDateString('zh-CN')
+        };
+    }
+
+    async validateApiKey(apiKey) {
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: "Hello"
+                        }]
+                    }]
+                })
+            });
+            
+            return response.ok;
+        } catch (error) {
+            console.error('API密钥验证失败:', error);
+            return false;
+        }
+    }
+
+    async callGeminiAPI(message, userData) {
+        if (!this.apiKey) {
+            throw new Error('API密钥未配置');
+        }
+
+        const prompt = this.buildPrompt(message, userData);
+        
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{
+                        text: prompt
+                    }]
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('API错误详情:', errorData);
+            throw new Error(`API请求失败: ${response.status} - ${errorData.error?.message || '未知错误'}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+            console.error('API响应格式错误:', data);
+            throw new Error('API响应格式不正确');
+        }
+        
+        return data.candidates[0].content.parts[0].text;
+    }
+
+    buildPrompt(message, userData) {
+        const { tasks, records, today, tomorrow, currentDate } = userData;
+        
+        // 分析用户的工作模式
+        const completedTasks = tasks.filter(t => t.completed);
+        const pendingTasks = tasks.filter(t => !t.completed);
+        const highPriorityTasks = tasks.filter(t => t.priority === 'high');
+        const recentTasks = tasks.filter(t => {
+            const taskDate = new Date(t.date);
+            const daysDiff = (new Date() - taskDate) / (1000 * 60 * 60 * 24);
+            return daysDiff <= 7;
+        });
+        
+        // 计算完成率
+        const completionRate = tasks.length > 0 ? Math.round((completedTasks.length / tasks.length) * 100) : 0;
+        
+        // 分析工作习惯
+        const workPatterns = this.analyzeWorkPatterns(tasks, records);
+        
+        const personalizedGreeting = this.getPersonalizedGreeting();
+        const workStyleAdvice = this.getWorkStyleAdvice(this.userPreferences.workStyle);
+        
+        return `你是用户的专属私人日程助理，名叫"kk"。你非常了解用户的工作习惯和偏好，能够提供个性化、贴心的日程管理服务。
+
+## 用户档案
+- 姓名：${this.userPreferences.name || '用户'}
+- 当前日期：${currentDate}
+- 任务完成率：${completionRate}%
+- 工作模式：${workPatterns}
+- 个人偏好：${workStyleAdvice}
+- 沟通风格：${this.userPreferences.communicationStyle}
+
+## 今日情况
+- 今日任务：${tasks.filter(t => t.date === today).map(t => `"${t.text}" (${t.priority === 'high' ? '🔴高优先级' : t.priority === 'medium' ? '🟡中优先级' : '🟢低优先级'}, ${t.completed ? '✅已完成' : '⏳进行中'})`).join(', ') || '暂无任务'}
+- 明日安排：${tasks.filter(t => t.date === tomorrow).map(t => `"${t.text}" (${t.priority === 'high' ? '🔴高优先级' : t.priority === 'medium' ? '🟡中优先级' : '🟢低优先级'})`).join(', ') || '暂无安排'}
+
+## 最近记录
+${records.slice(0, 5).map(r => `- ${r.date}: ${r.text}`).join('\n') || '暂无记录'}
+
+## 你的角色特点
+1. **贴心关怀**：像朋友一样关心用户，主动提醒重要事项
+2. **专业建议**：基于数据提供科学的日程安排建议
+3. **个性化**：根据用户的工作模式调整建议方式
+4. **积极鼓励**：在用户完成任务时给予肯定和鼓励
+5. **前瞻规划**：帮助用户提前规划，避免任务堆积
+6. **学习适应**：从用户的行为中学习，不断优化建议方式
+
+## 日程管理服务
+- **任务分析**：分析用户的任务完成情况，提供改进建议
+- **时间规划**：帮助用户合理安排时间，提高效率
+- **优先级建议**：根据任务重要性和紧急程度提供优先级建议
+- **进度跟踪**：跟踪用户的任务进度，提供鼓励和提醒
+- **习惯分析**：分析用户的工作习惯，提供个性化建议
+- **周月规划**：帮助用户制定周计划和月计划
+
+## 回复风格
+- 语气：${this.userPreferences.communicationStyle === 'friendly' ? '温暖友好' : this.userPreferences.communicationStyle === 'professional' ? '专业严谨' : '轻松幽默'}
+- 称呼：${this.userPreferences.name ? `用"${this.userPreferences.name}"称呼用户` : '用"你"而不是"您"，更亲近'}
+- 表情：适当使用emoji增加亲和力
+- 建议：具体、可操作、符合用户习惯
+- 个性化：${personalizedGreeting}，${workStyleAdvice}
+- 回复格式：简洁有组织，使用标题、列表、重点标记等让信息更清晰
+
+## 特殊命令格式
+如果用户要求设置个人偏好，请以JSON格式返回：
+{
+  "action": "update_preferences",
+  "preferences": {
+    "name": "用户姓名",
+    "workStyle": "efficient|balanced|creative|analytical|spontaneous",
+    "communicationStyle": "friendly|professional|casual",
+    "reminderFrequency": "low|moderate|high",
+    "goalFocus": "productivity|work_life_balance|creativity|learning"
+  }
+}
+
+## 日程管理建议规则
+在以下情况下，提供具体的日程管理建议：
+1. 用户提到会议、讨论、项目等需要准备的事项
+2. 用户的工作效率需要提升时
+3. 用户没有今日任务安排时
+4. 基于用户的工作模式需要补充的建议
+5. 用户提到需要跟进的事项
+
+## 当前对话
+用户说：${message}
+
+请以私人助理的身份，基于以上信息给出贴心的回复和建议。回复要简洁有组织，使用标题、列表、重点标记等让信息更清晰。`;
+    }
+
+    analyzeWorkPatterns(tasks, records) {
+        if (tasks.length === 0) return "新用户，正在了解工作习惯";
+        
+        const highPriorityCount = tasks.filter(t => t.priority === 'high').length;
+        const completionRate = tasks.length > 0 ? (tasks.filter(t => t.completed).length / tasks.length) * 100 : 0;
+        
+        let patterns = [];
+        
+        if (highPriorityCount / tasks.length > 0.5) {
+            patterns.push("偏好高优先级任务");
+        }
+        
+        if (completionRate > 80) {
+            patterns.push("高效执行者");
+        } else if (completionRate < 50) {
+            patterns.push("需要时间管理优化");
+        }
+        
+        // 分析任务时间分布
+        const today = new Date().toISOString().split('T')[0];
+        const todayTasks = tasks.filter(t => t.date === today).length;
+        const weekTasks = tasks.filter(t => {
+            const taskDate = new Date(t.date);
+            const daysDiff = (new Date() - taskDate) / (1000 * 60 * 60 * 24);
+            return daysDiff <= 7;
+        }).length;
+        
+        if (todayTasks > 5) {
+            patterns.push("喜欢集中安排");
+        }
+        
+        if (weekTasks > 20) {
+            patterns.push("工作量大");
+        }
+        
+        return patterns.length > 0 ? patterns.join("，") : "平衡型工作者";
+    }
+
+    loadUserPreferences() {
+        try {
+            const saved = localStorage.getItem('ai_user_preferences');
+            return saved ? JSON.parse(saved) : {
+                name: '',
+                workStyle: 'balanced',
+                preferredTime: 'morning',
+                communicationStyle: 'friendly',
+                reminderFrequency: 'moderate',
+                goalFocus: 'productivity'
+            };
+        } catch (error) {
+            console.error('加载用户偏好失败:', error);
+            return this.getDefaultPreferences();
+        }
+    }
+
+    getDefaultPreferences() {
+        return {
+            name: '',
+            workStyle: 'balanced',
+            preferredTime: 'morning',
+            communicationStyle: 'friendly',
+            reminderFrequency: 'moderate',
+            goalFocus: 'productivity'
+        };
+    }
+
+    saveUserPreferences() {
+        try {
+            localStorage.setItem('ai_user_preferences', JSON.stringify(this.userPreferences));
+        } catch (error) {
+            console.error('保存用户偏好失败:', error);
+        }
+    }
+
+    updateUserPreferences(newPreferences) {
+        this.userPreferences = { ...this.userPreferences, ...newPreferences };
+        this.saveUserPreferences();
+    }
+
+    getPersonalizedGreeting() {
+        const { name, workStyle, preferredTime } = this.userPreferences;
+        const currentHour = new Date().getHours();
+        
+        let greeting = "你好";
+        if (name) {
+            greeting = `你好，${name}`;
+        }
+        
+        if (currentHour < 12) {
+            greeting += "！早上好";
+        } else if (currentHour < 18) {
+            greeting += "！下午好";
+        } else {
+            greeting += "！晚上好";
+        }
+        
+        return greeting;
+    }
+
+    getWorkStyleAdvice(workStyle) {
+        const adviceMap = {
+            'efficient': '你是一个高效执行者，建议专注于重要任务，避免过度规划',
+            'balanced': '你是一个平衡型工作者，建议合理分配时间，保持工作生活平衡',
+            'creative': '你是一个创意型工作者，建议为灵感留出时间，灵活安排任务',
+            'analytical': '你是一个分析型工作者，建议详细规划，注重数据驱动决策',
+            'spontaneous': '你是一个灵活型工作者，建议保持开放心态，适应变化'
+        };
+        return adviceMap[workStyle] || adviceMap['balanced'];
+    }
+
+
+
+
+
+    addMessage(content, sender) {
+        const chatMessages = document.getElementById('aiChatMessages');
+        if (!chatMessages) return;
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `ai-message ai-message-${sender}`;
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'ai-message-content';
+        contentDiv.textContent = content;
+        
+        messageDiv.appendChild(contentDiv);
+        chatMessages.appendChild(messageDiv);
+        
+        // 滚动到底部
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    showLoading() {
+        const chatMessages = document.getElementById('aiChatMessages');
+        if (!chatMessages) return;
+
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'ai-message ai-message-bot ai-loading';
+        loadingDiv.id = 'aiLoadingMessage';
+        
+        loadingDiv.innerHTML = `
+            <div class="ai-message-content">
+                <div class="ai-loading">
+                    AI正在思考中
+                    <div class="ai-loading-dots">
+                        <div class="ai-loading-dot"></div>
+                        <div class="ai-loading-dot"></div>
+                        <div class="ai-loading-dot"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        chatMessages.appendChild(loadingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    hideLoading() {
+        const loadingMessage = document.getElementById('aiLoadingMessage');
+        if (loadingMessage) {
+            loadingMessage.remove();
+        }
+    }
+
+    handleAIResponse(response) {
+        try {
+            // 尝试解析JSON响应
+            const data = JSON.parse(response);
+            if (data.action === 'update_preferences' && data.preferences) {
+                this.updateUserPreferences(data.preferences);
+                this.addMessage('已更新你的个人偏好设置！', 'bot');
+            }
+        } catch (e) {
+            // 如果不是JSON，就是普通文本回复，不需要特殊处理
+        }
+    }
+
+}
+
 class TextManager {
     constructor() {
         this.texts = this.loadFromStorage();
@@ -341,8 +860,8 @@ class TextManager {
         
         // 设置默认日期为今天
         const today = new Date().toISOString().split('T')[0];
-        dateInput.value = today;
-        taskDateInput.value = today;
+        if (dateInput) dateInput.value = today;
+        if (taskDateInput) taskDateInput.value = today;
         
         // 记录表单
         textForm.addEventListener('submit', (e) => {
@@ -454,6 +973,7 @@ class TextManager {
         const taskInput = document.getElementById('taskInput');
         const taskDateInput = document.getElementById('taskDateInput');
         const taskPriority = document.getElementById('taskPriority');
+        const submitBtn = document.querySelector('#taskForm button[type="submit"]');
         
         const text = taskInput.value.trim();
         const date = taskDateInput.value;
@@ -463,41 +983,113 @@ class TextManager {
             this.showNotification('请输入任务内容！', 'error');
             return;
         }
-        
-        const taskItem = {
-            id: Date.now(),
-            text: text,
-            date: date,
-            timestamp: new Date().toLocaleTimeString('zh-CN'),
-            type: 'task',
-            priority: priority,
-            completed: false
-        };
-        
+
+        // 检查是否为编辑模式
+        const isEditing = taskInput.getAttribute('data-editing') === 'true';
+        const editingTaskId = parseInt(taskInput.getAttribute('data-task-id'));
+
+        if (isEditing && editingTaskId) {
+            // 编辑模式：更新现有任务
+            await this.updateTaskContent(editingTaskId, text, date, priority);
+        } else {
+            // 新增模式：创建新任务
+            const taskItem = {
+                id: Date.now(),
+                text: text,
+                date: date,
+                timestamp: new Date().toLocaleTimeString('zh-CN'),
+                type: 'task',
+                priority: priority,
+                completed: false
+            };
+            
+            try {
+                // 如果用户已登录，保存到Firebase
+                if (this.firebaseManager && this.firebaseManager.currentUser) {
+                    const firebaseId = await this.firebaseManager.saveTask(taskItem);
+                    taskItem.firebaseId = firebaseId;
+                    this.firebaseManager.showSyncStatus('任务已同步');
+                    setTimeout(() => this.firebaseManager.hideSyncStatus(), 2000);
+                }
+                
+                this.tasks.push(taskItem);
+                this.saveTasksToStorage();
+                this.updateDisplay();
+                this.updateDailyCalendar();
+                this.updateMonthlyProgress();
+                
+                // 清空输入框
+                taskInput.value = '';
+                
+                // 显示添加成功提示
+                this.showNotification('任务添加成功！', 'success');
+            } catch (error) {
+                console.error('保存任务失败:', error);
+                this.showNotification('保存失败，请检查网络连接', 'error');
+            }
+        }
+
+        // 重置编辑模式
+        this.resetEditMode();
+    }
+
+    /**
+     * 更新任务内容
+     */
+    async updateTaskContent(taskId, text, date, priority) {
+        const task = this.tasks.find(item => item.id === taskId);
+        if (!task) return;
+
         try {
-            // 如果用户已登录，保存到Firebase
-            if (this.firebaseManager && this.firebaseManager.currentUser) {
-                const firebaseId = await this.firebaseManager.saveTask(taskItem);
-                taskItem.firebaseId = firebaseId;
-                this.firebaseManager.showSyncStatus('任务已同步');
+            // 更新任务数据
+            task.text = text;
+            task.date = date;
+            task.priority = priority;
+            task.timestamp = new Date().toLocaleTimeString('zh-CN');
+
+            // 如果用户已登录且有Firebase ID，更新Firebase
+            if (this.firebaseManager && this.firebaseManager.currentUser && task.firebaseId) {
+                await this.firebaseManager.updateTask(task.firebaseId, {
+                    text: text,
+                    date: date,
+                    priority: priority,
+                    timestamp: task.timestamp
+                });
+                this.firebaseManager.showSyncStatus('任务已更新');
                 setTimeout(() => this.firebaseManager.hideSyncStatus(), 2000);
             }
-            
-            this.tasks.push(taskItem);
+
             this.saveTasksToStorage();
             this.updateDisplay();
             this.updateDailyCalendar();
             this.updateMonthlyProgress();
-            
-            // 清空输入框
-            taskInput.value = '';
-            
-            // 显示添加成功提示
-            this.showNotification('任务添加成功！', 'success');
+
+            this.showNotification('任务更新成功！', 'success');
         } catch (error) {
-            console.error('保存任务失败:', error);
-            this.showNotification('保存失败，请检查网络连接', 'error');
+            console.error('更新任务失败:', error);
+            this.showNotification('更新失败，请检查网络连接', 'error');
         }
+    }
+
+    /**
+     * 重置编辑模式
+     */
+    resetEditMode() {
+        const taskInput = document.getElementById('taskInput');
+        const submitBtn = document.querySelector('#taskForm button[type="submit"]');
+
+        // 移除编辑模式标识
+        taskInput.removeAttribute('data-editing');
+        taskInput.removeAttribute('data-task-id');
+        submitBtn.removeAttribute('data-editing');
+        submitBtn.removeAttribute('data-task-id');
+
+        // 恢复按钮文本
+        submitBtn.textContent = '添加任务';
+
+        // 清除视觉提示
+        taskInput.style.border = '';
+        taskInput.style.boxShadow = '';
     }
 
     /**
@@ -514,7 +1106,12 @@ class TextManager {
         document.querySelectorAll('.input-form').forEach(form => {
             form.classList.remove('active');
         });
-        document.getElementById(tab === 'task' ? 'taskForm' : 'textForm').classList.add('active');
+        
+        if (tab === 'ai') {
+            document.getElementById('aiForm').classList.add('active');
+        } else {
+            document.getElementById(tab === 'task' ? 'taskForm' : 'textForm').classList.add('active');
+        }
     }
 
     /**
@@ -572,6 +1169,47 @@ class TextManager {
                 this.showNotification('删除失败，请检查网络连接', 'error');
             }
         }
+    }
+
+    /**
+     * 编辑任务
+     * @param {number} id - 任务的唯一ID
+     */
+    editTask(id) {
+        const task = this.tasks.find(item => item.id === id);
+        if (!task) return;
+
+        // 切换到任务标签
+        this.switchTab('task');
+
+        // 填充表单
+        const taskInput = document.getElementById('taskInput');
+        const taskDateInput = document.getElementById('taskDateInput');
+        const taskPriority = document.getElementById('taskPriority');
+
+        taskInput.value = task.text;
+        taskDateInput.value = task.date;
+        taskPriority.value = task.priority;
+
+        // 滚动到表单
+        taskInput.scrollIntoView({ behavior: 'smooth' });
+        taskInput.focus();
+
+        // 添加编辑模式标识
+        taskInput.setAttribute('data-editing', 'true');
+        taskInput.setAttribute('data-task-id', id);
+
+        // 更新提交按钮文本
+        const submitBtn = document.querySelector('#taskForm button[type="submit"]');
+        submitBtn.textContent = '更新任务';
+        submitBtn.setAttribute('data-editing', 'true');
+        submitBtn.setAttribute('data-task-id', id);
+
+        this.showNotification('正在编辑任务，修改后点击"更新任务"保存', 'info');
+        
+        // 添加视觉提示
+        taskInput.style.border = '2px solid #f39c12';
+        taskInput.style.boxShadow = '0 0 10px rgba(243, 156, 18, 0.3)';
     }
 
     /**
@@ -883,13 +1521,13 @@ class TextManager {
                         item.priority === 'medium' ? '🟡' : '🟢';
                     
                     html += `
-                        <div class="daily-item task-item ${item.completed ? 'completed' : ''}">
+                        <div class="daily-item task-item ${item.completed ? 'completed' : ''}" onclick="textManager.editTask(${item.id})" style="cursor: pointer;">
                             <div class="daily-item-content">
                                 <div class="daily-item-icon">${priorityIcon}</div>
                                 <div class="daily-item-text ${item.completed ? 'completed' : ''}">${this.escapeHtml(item.text)}</div>
                                 <div class="daily-item-time">${item.timestamp}</div>
                             </div>
-                            <div class="daily-item-actions">
+                            <div class="daily-item-actions" onclick="event.stopPropagation();">
                                 <button class="daily-action-btn" onclick="textManager.toggleTask(${item.id}); textManager.updateDailyCalendar()" title="${item.completed ? '标记为未完成' : '标记为完成'}">
                                     ${item.completed ? '↩️' : '✅'}
                                 </button>
@@ -1145,7 +1783,7 @@ class TextManager {
             if (dayRecords.length > 0 || dayTasks.length > 0) dayClass += ' has-records';
             if (allTasksCompleted) dayClass += ' completed';
             
-            html += `<div class="${dayClass}" onclick="textManager.showDayRecords('${dateStr}')">
+            html += `<div class="${dayClass}" onclick="textManager.showDayRecords('${dateStr}', event)">
                 <div class="day-number">${day}</div>
                 ${allTasksCompleted ? '<div class="completion-badge"></div>' : ''}`;
             
@@ -1194,8 +1832,9 @@ class TextManager {
     /**
      * 显示指定日期的记录
      * @param {string} dateStr - 日期字符串
+     * @param {Event} event - 点击事件（可选）
      */
-    showDayRecords(dateStr) {
+    showDayRecords(dateStr, event = null) {
         const dayRecords = this.texts.filter(item => item.date === dateStr);
         const dayTasks = this.tasks.filter(item => item.date === dateStr);
         const modal = document.getElementById('recordModal');
@@ -1221,12 +1860,12 @@ class TextManager {
                     task.priority === 'medium' ? '🟡' : '🟢';
                 
                 html += `
-                    <div class="modal-record-item task-item ${completedClass}">
-                        <div class="task-controls">
-                            <button class="task-toggle-btn" onclick="textManager.toggleTask(${task.id}); textManager.showDayRecords('${dateStr}')" title="${task.completed ? '标记为未完成' : '标记为完成'}">
+                    <div class="modal-record-item task-item ${completedClass}" onclick="textManager.editTask(${task.id})" style="cursor: pointer;">
+                        <div class="task-controls" onclick="event.stopPropagation();">
+                            <button class="task-toggle-btn" onclick="textManager.toggleTask(${task.id}); textManager.showDayRecords('${dateStr}', event)" title="${task.completed ? '标记为未完成' : '标记为完成'}">
                                 ${task.completed ? '↩️' : '✅'}
                             </button>
-                            <button class="modal-delete-btn" onclick="textManager.deleteTask(${task.id}); textManager.showDayRecords('${dateStr}')" title="删除">×</button>
+                            <button class="modal-delete-btn" onclick="textManager.deleteTask(${task.id}); textManager.showDayRecords('${dateStr}', event)" title="删除">×</button>
                         </div>
                         <div class="modal-record-content">
                             <span class="priority-icon">${priorityIcon}</span>
@@ -1241,7 +1880,7 @@ class TextManager {
             dayRecords.forEach(record => {
                 html += `
                     <div class="modal-record-item">
-                        <button class="modal-delete-btn" onclick="textManager.deleteText(${record.id}); textManager.showDayRecords('${dateStr}')" title="删除">×</button>
+                        <button class="modal-delete-btn" onclick="textManager.deleteText(${record.id}); textManager.showDayRecords('${dateStr}', event)" title="删除">×</button>
                         <div class="modal-record-content">${this.escapeHtml(record.text)}</div>
                         <div class="modal-record-time">添加时间：${record.timestamp}</div>
                     </div>
@@ -1251,7 +1890,63 @@ class TextManager {
             modalBody.innerHTML = html;
         }
         
+        // 计算模态框位置
+        this.positionModal(modal, event);
+        
         modal.style.display = 'block';
+    }
+
+    /**
+     * 计算并设置模态框位置
+     * @param {HTMLElement} modal - 模态框元素
+     * @param {Event} event - 点击事件
+     */
+    positionModal(modal, event) {
+        if (!event) {
+            // 如果没有事件，使用默认居中位置
+            modal.style.position = 'fixed';
+            modal.style.top = '50%';
+            modal.style.left = '50%';
+            modal.style.transform = 'translate(-50%, -50%)';
+            return;
+        }
+
+        const rect = event.target.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const modalWidth = 400; // 模态框宽度
+        const modalHeight = 500; // 模态框高度（估算）
+
+        let left, top;
+
+        // 计算水平位置
+        if (rect.left + modalWidth > viewportWidth) {
+            // 如果右侧空间不够，放在左侧
+            left = Math.max(10, rect.right - modalWidth);
+        } else {
+            // 放在右侧
+            left = rect.left;
+        }
+
+        // 计算垂直位置
+        if (rect.top + modalHeight > viewportHeight) {
+            // 如果下方空间不够，放在上方
+            top = Math.max(10, rect.bottom - modalHeight);
+        } else {
+            // 放在下方
+            top = rect.top + 20;
+        }
+
+        // 确保不超出视窗边界
+        left = Math.max(10, Math.min(left, viewportWidth - modalWidth - 10));
+        top = Math.max(10, Math.min(top, viewportHeight - modalHeight - 10));
+
+        // 设置模态框位置
+        modal.style.position = 'fixed';
+        modal.style.left = left + 'px';
+        modal.style.top = top + 'px';
+        modal.style.transform = 'none';
+        modal.style.zIndex = '1000';
     }
 
     /**
@@ -1436,6 +2131,7 @@ class TextManager {
 // 全局变量
 let textManager;
 let firebaseManager;
+let aiAssistant;
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -1446,6 +2142,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化文本管理器
     textManager = new TextManager();
     window.textManager = textManager;
+    
+    // 初始化AI助手
+    aiAssistant = new AIAssistant();
+    window.aiAssistant = aiAssistant;
     
     // 设置登录按钮事件监听器
     setupAuthEventListeners();
