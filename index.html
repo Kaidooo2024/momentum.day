@@ -220,7 +220,22 @@
                         <div class="stat-label">不同日期数</div>
                     </div>
                 </div>
-                <div id="calendar" class="calendar"></div>
+                
+                <!-- 月历和任务显示区域 -->
+                <div class="calendar-task-container">
+                    <div id="calendar" class="calendar"></div>
+                    
+                    <!-- 选中日期的任务显示区域 -->
+                    <div id="selectedDateTasks" class="selected-date-tasks" style="display: none;">
+                        <div class="selected-date-header">
+                            <h3 id="selectedDateTitle">选中日期的任务</h3>
+                            <button id="closeSelectedTasks" class="close-selected-tasks">×</button>
+                        </div>
+                        <div id="selectedDateTasksContent" class="selected-date-tasks-content">
+                            <!-- 任务内容将在这里显示 -->
+                        </div>
+                    </div>
+                </div>
                 
                 <!-- 月度打卡进度条 -->
                 <div class="monthly-progress-section">
@@ -259,6 +274,19 @@
                 </div>
                 <div class="modal-body" id="modalBody">
                     <!-- 记录内容将在这里显示 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 悬浮任务详情模态框 -->
+        <div id="taskModal" class="floating-modal">
+            <div class="floating-modal-content">
+                <div class="floating-modal-header">
+                    <h3 id="floatingModalDate"></h3>
+                    <span class="floating-close">&times;</span>
+                </div>
+                <div class="floating-modal-body" id="floatingModalBody">
+                    <!-- 任务内容将在这里显示 -->
                 </div>
             </div>
         </div>

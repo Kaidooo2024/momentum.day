@@ -883,6 +883,7 @@ class TextManager {
         const modal = document.getElementById('recordModal');
         const closeBtn = document.querySelector('.close');
         const tabBtns = document.querySelectorAll('.tab-btn');
+        const closeSelectedTasksBtn = document.getElementById('closeSelectedTasks');
         
         // 设置默认日期为今天
         const today = new Date().toISOString().split('T')[0];
@@ -940,6 +941,45 @@ class TextManager {
         window.addEventListener('click', (e) => {
             if (e.target === modal) {
                 modal.style.display = 'none';
+            }
+        });
+
+        // 选中日期任务面板关闭按钮
+        if (closeSelectedTasksBtn) {
+            closeSelectedTasksBtn.addEventListener('click', () => {
+                this.hideSelectedDateTasks();
+            });
+        }
+
+        // 悬浮任务模态框关闭按钮
+        const floatingCloseBtn = document.querySelector('.floating-close');
+        if (floatingCloseBtn) {
+            floatingCloseBtn.addEventListener('click', () => {
+                this.hideFloatingTaskModal();
+            });
+        }
+
+        // 点击悬浮模态框外部关闭
+        const taskModal = document.getElementById('taskModal');
+        if (taskModal) {
+            taskModal.addEventListener('click', (e) => {
+                if (e.target === taskModal) {
+                    this.hideFloatingTaskModal();
+                }
+            });
+        }
+
+        // 监听窗口大小变化，动态调整悬浮模态框高度
+        window.addEventListener('resize', () => {
+            if (taskModal && taskModal.style.display === 'block') {
+                this.positionFloatingModal(taskModal, null);
+            }
+        });
+
+        // 监听页面滚动，让悬浮窗口跟随当前滚动位置
+        window.addEventListener('scroll', () => {
+            if (taskModal && taskModal.style.display === 'block') {
+                this.updateFloatingModalPosition(taskModal);
             }
         });
     }
@@ -1863,6 +1903,14 @@ class TextManager {
     showDayRecords(dateStr, event = null) {
         const dayRecords = this.texts.filter(item => item.date === dateStr);
         const dayTasks = this.tasks.filter(item => item.date === dateStr);
+        
+        // 如果有点击事件，显示悬浮任务模态框
+        if (event) {
+            this.showFloatingTaskModal(dateStr, dayTasks, dayRecords, event);
+            return;
+        }
+        
+        // 否则显示模态框（用于记录或没有任务的情况）
         const modal = document.getElementById('recordModal');
         const modalDate = document.getElementById('modalDate');
         const modalBody = document.getElementById('modalBody');
@@ -1920,6 +1968,219 @@ class TextManager {
         this.positionModal(modal, event);
         
         modal.style.display = 'block';
+    }
+
+    /**
+     * 显示悬浮任务详情模态框
+     * @param {string} dateStr - 日期字符串
+     * @param {Array} dayTasks - 该日期的任务
+     * @param {Array} dayRecords - 该日期的记录
+     * @param {Event} event - 点击事件
+     */
+    showFloatingTaskModal(dateStr, dayTasks, dayRecords, event) {
+        const taskModal = document.getElementById('taskModal');
+        const floatingModalDate = document.getElementById('floatingModalDate');
+        const floatingModalBody = document.getElementById('floatingModalBody');
+        
+        // 更新标题
+        const formattedDate = this.formatDate(dateStr);
+        floatingModalDate.textContent = `${formattedDate} 的任务详情`;
+        
+        // 合并任务和记录，任务优先显示
+        const allItems = [...dayTasks, ...dayRecords];
+        
+        if (allItems.length === 0) {
+            floatingModalBody.innerHTML = '<div class="floating-empty-state">这一天还没有任务或记录</div>';
+        } else {
+            let html = '';
+            
+            // 先显示任务
+            dayTasks.forEach(task => {
+                const completedClass = task.completed ? 'completed' : '';
+                const priorityIcon = task.completed ? '✅' : 
+                    task.priority === 'high' ? '🔴' : 
+                    task.priority === 'medium' ? '🟡' : '🟢';
+                
+                html += `
+                    <div class="floating-task-item ${completedClass}" onclick="textManager.editTask(${task.id})" style="cursor: pointer;">
+                        <div class="floating-task-controls" onclick="event.stopPropagation();">
+                            <button class="floating-task-toggle" onclick="textManager.toggleTask(${task.id}); textManager.showFloatingTaskModal('${dateStr}', textManager.tasks.filter(t => t.date === '${dateStr}'), textManager.texts.filter(t => t.date === '${dateStr}'), event)" title="${task.completed ? '标记为未完成' : '标记为完成'}">
+                                ${task.completed ? '↩️' : '✅'}
+                            </button>
+                            <button class="floating-task-delete" onclick="textManager.deleteTask(${task.id}); textManager.showFloatingTaskModal('${dateStr}', textManager.tasks.filter(t => t.date === '${dateStr}'), textManager.texts.filter(t => t.date === '${dateStr}'), event)" title="删除">×</button>
+                        </div>
+                        <div class="floating-task-content">
+                            <span class="priority-icon">${priorityIcon}</span>
+                            <span class="${task.completed ? 'completed-text' : ''}">${this.escapeHtml(task.text)}</span>
+                        </div>
+                        <div class="floating-task-time">添加时间：${task.timestamp}</div>
+                    </div>
+                `;
+            });
+            
+            // 再显示记录
+            dayRecords.forEach(record => {
+                html += `
+                    <div class="floating-task-item">
+                        <div class="floating-task-content">${this.escapeHtml(record.text)}</div>
+                        <div class="floating-task-time">添加时间：${record.timestamp}</div>
+                    </div>
+                `;
+            });
+            
+            floatingModalBody.innerHTML = html;
+        }
+        
+        // 计算并设置悬浮模态框位置
+        this.positionFloatingModal(taskModal, event);
+        
+        // 显示悬浮模态框
+        taskModal.style.display = 'block';
+        
+        // 添加视觉反馈，高亮显示选中的日期
+        this.highlightSelectedDate(dateStr);
+    }
+
+    /**
+     * 显示选中日期的任务面板（保留原方法，但不再使用）
+     * @param {string} dateStr - 日期字符串
+     * @param {Array} dayTasks - 该日期的任务
+     * @param {Array} dayRecords - 该日期的记录
+     */
+    showSelectedDateTasks(dateStr, dayTasks, dayRecords) {
+        // 这个方法现在不再使用，保留是为了兼容性
+        this.showFloatingTaskModal(dateStr, dayTasks, dayRecords, null);
+    }
+
+    /**
+     * 隐藏悬浮任务模态框
+     */
+    hideFloatingTaskModal() {
+        const taskModal = document.getElementById('taskModal');
+        taskModal.style.display = 'none';
+        
+        // 清除高亮
+        const calendarDays = document.querySelectorAll('.calendar-day');
+        calendarDays.forEach(day => {
+            day.classList.remove('selected-date');
+        });
+    }
+
+    /**
+     * 隐藏选中日期的任务面板
+     */
+    hideSelectedDateTasks() {
+        const selectedDateTasks = document.getElementById('selectedDateTasks');
+        selectedDateTasks.style.display = 'none';
+        
+        // 清除高亮
+        const calendarDays = document.querySelectorAll('.calendar-day');
+        calendarDays.forEach(day => {
+            day.classList.remove('selected-date');
+        });
+    }
+
+    /**
+     * 跳转到任务页面并筛选指定日期的任务
+     * @param {string} dateStr - 日期字符串
+     */
+    switchToTaskPageWithDate(dateStr) {
+        // 切换到任务页面
+        this.switchTab('taskForm');
+        
+        // 设置选中的日期
+        this.selectedDate = new Date(dateStr);
+        
+        // 更新任务显示，只显示选中日期的任务
+        this.updateDailyCalendar();
+        
+        // 添加视觉反馈，高亮显示选中的日期
+        this.highlightSelectedDate(dateStr);
+        
+        // 滚动到任务区域
+        setTimeout(() => {
+            const taskForm = document.getElementById('taskForm');
+            if (taskForm) {
+                taskForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100);
+    }
+
+    /**
+     * 高亮显示选中的日期
+     * @param {string} dateStr - 日期字符串
+     */
+    highlightSelectedDate(dateStr) {
+        // 清除之前的高亮
+        const calendarDays = document.querySelectorAll('.calendar-day');
+        calendarDays.forEach(day => {
+            day.classList.remove('selected-date');
+        });
+        
+        // 高亮当前选中的日期
+        const targetDay = Array.from(calendarDays).find(day => {
+            const dayNumber = day.querySelector('.day-number');
+            return dayNumber && dayNumber.textContent === dateStr.split('-')[2];
+        });
+        
+        if (targetDay) {
+            targetDay.classList.add('selected-date');
+        }
+    }
+
+    /**
+     * 计算并设置悬浮模态框位置
+     * @param {HTMLElement} modal - 悬浮模态框元素
+     * @param {Event} event - 点击事件
+     */
+    positionFloatingModal(modal, event) {
+        // 获取当前页面滚动位置
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const viewportHeight = window.innerHeight;
+        const documentHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        
+        // 使用视窗高度或文档高度中较大的值
+        const modalHeight = Math.max(viewportHeight, documentHeight);
+        
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100%';
+        modal.style.height = modalHeight + 'px';
+        modal.style.transform = 'none';
+        modal.style.zIndex = '2000';
+        
+        // 设置内容容器的位置，基于当前滚动位置居中
+        const modalContent = modal.querySelector('.floating-modal-content');
+        if (modalContent) {
+            // 计算内容应该显示的位置（当前滚动位置 + 视窗高度的一半）
+            const centerY = scrollTop + (viewportHeight / 2);
+            
+            modalContent.style.position = 'fixed';
+            modalContent.style.top = centerY + 'px';
+            modalContent.style.left = '50%';
+            modalContent.style.transform = 'translate(-50%, -50%)';
+            modalContent.style.zIndex = '2001';
+            modalContent.style.maxHeight = '80vh';
+            modalContent.style.overflowY = 'auto';
+        }
+    }
+
+    /**
+     * 更新悬浮模态框位置（仅更新内容位置，不重新设置整个模态框）
+     * @param {HTMLElement} modal - 悬浮模态框元素
+     */
+    updateFloatingModalPosition(modal) {
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const viewportHeight = window.innerHeight;
+        
+        const modalContent = modal.querySelector('.floating-modal-content');
+        if (modalContent) {
+            // 计算内容应该显示的位置（当前滚动位置 + 视窗高度的一半）
+            const centerY = scrollTop + (viewportHeight / 2);
+            
+            modalContent.style.top = centerY + 'px';
+        }
     }
 
     /**

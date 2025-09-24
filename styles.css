@@ -725,6 +725,9 @@ select:focus {
 /* 月历区域 */
 .monthly-calendar-section {
     margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .display-section h2 {
@@ -847,6 +850,8 @@ select:focus {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
+    width: 100%;
+    max-width: 100%;
 }
 
 .calendar-controls {
@@ -876,6 +881,17 @@ select:focus {
     letter-spacing: 0.02em;
 }
 
+/* 月历和任务容器 */
+.calendar-task-container {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
 /* 日历样式 */
 .calendar {
     display: grid;
@@ -888,7 +904,8 @@ select:focus {
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     border: 1px solid rgba(0,0,0,0.05);
     width: 100%;
-    max-width: 800px;
+    max-width: 100%;
+    flex-shrink: 0;
     margin: 0 auto;
 }
 
@@ -1173,6 +1190,498 @@ select:focus {
     pointer-events: none;
 }
 
+/* 选中日期样式 */
+.calendar-day.selected-date {
+    background: rgba(79, 172, 254, 0.2) !important;
+    border: 2px solid rgba(79, 172, 254, 0.6) !important;
+    box-shadow: 0 0 8px rgba(79, 172, 254, 0.4) !important;
+    transform: scale(1.01) !important;
+    z-index: 10;
+    position: relative;
+}
+
+.calendar-day.selected-date::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    background: linear-gradient(45deg, rgba(79, 172, 254, 0.1), rgba(0, 242, 254, 0.1));
+    border-radius: 6px;
+    z-index: -1;
+    animation: selectedDatePulse 2s infinite;
+}
+
+@keyframes selectedDatePulse {
+    0%, 100% { 
+        opacity: 0.3;
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 0.6;
+        transform: scale(1.02);
+    }
+}
+
+/* 悬浮任务详情模态框 */
+.floating-modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100vh;
+    min-height: 100vh;
+    background-color: rgba(0,0,0,0.3);
+    animation: fadeIn 0.3s ease;
+    backdrop-filter: blur(5px);
+}
+
+.floating-modal-content {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    border: 1px solid rgba(0,0,0,0.1);
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow: hidden;
+    animation: floatingSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: center;
+    z-index: 2000;
+}
+
+.floating-modal-header {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+    padding: 20px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.floating-modal-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    animation: headerShine 3s infinite;
+}
+
+@keyframes headerShine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.floating-modal-header h3 {
+    margin: 0;
+    font-size: 1.4em;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    position: relative;
+    z-index: 2;
+}
+
+.floating-close {
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+}
+
+.floating-close:hover {
+    background-color: rgba(255,255,255,0.2);
+    transform: scale(1.1);
+}
+
+.floating-modal-body {
+    padding: 25px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.8);
+}
+
+.floating-task-item {
+    background: rgba(255, 255, 255, 0.9);
+    padding: 18px;
+    margin-bottom: 15px;
+    border-radius: 12px;
+    border-left: 4px solid #4facfe;
+    position: relative;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    backdrop-filter: blur(10px);
+}
+
+.floating-task-item:hover {
+    background: rgba(79, 172, 254, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.floating-task-item.completed {
+    border-left-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.1);
+    opacity: 0.9;
+}
+
+.floating-task-content {
+    margin-bottom: 10px;
+    line-height: 1.6;
+    color: #333;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.floating-task-time {
+    font-size: 0.9em;
+    color: #666;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+}
+
+.floating-task-controls {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    display: flex;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.floating-task-item:hover .floating-task-controls {
+    opacity: 1;
+}
+
+.floating-task-toggle {
+    background: #4facfe;
+    color: white;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(79, 172, 254, 0.3);
+}
+
+.floating-task-toggle:hover {
+    background: #3d8bfd;
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(79, 172, 254, 0.4);
+}
+
+.floating-task-delete {
+    background: #ff4757;
+    color: white;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
+}
+
+.floating-task-delete:hover {
+    background: #ff3742;
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(255, 71, 87, 0.4);
+}
+
+.floating-empty-state {
+    text-align: center;
+    color: #666;
+    padding: 50px 20px;
+    font-style: italic;
+    font-size: 1.1em;
+}
+
+.priority-icon {
+    margin-right: 8px;
+    font-size: 1.1em;
+}
+
+.completed-text {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+/* 动画效果 */
+@keyframes floatingSlideIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.8) translateY(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* 选中日期任务显示区域 - 保留原有样式但隐藏 */
+.selected-date-tasks {
+    display: none; /* 隐藏原有的右侧面板 */
+}
+
+.selected-date-header {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.selected-date-header h3 {
+    margin: 0;
+    font-size: 1.2em;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.close-selected-tasks {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+}
+
+.close-selected-tasks:hover {
+    background-color: rgba(255,255,255,0.2);
+}
+
+.selected-date-tasks-content {
+    padding: 20px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.selected-date-task-item {
+    background: #f8f9fa;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    border-left: 4px solid #4facfe;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.selected-date-task-item:hover {
+    background: rgba(79, 172, 254, 0.1);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.selected-date-task-item.completed {
+    border-left-color: #4CAF50;
+    background: #f0f8f0;
+    opacity: 0.8;
+}
+
+.selected-date-task-content {
+    margin-bottom: 6px;
+    line-height: 1.5;
+    color: #333;
+    font-weight: 400;
+}
+
+.selected-date-task-time {
+    font-size: 0.85em;
+    color: #666;
+    font-weight: 400;
+}
+
+.selected-date-task-controls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 5px;
+}
+
+.selected-date-task-toggle {
+    background: #4facfe;
+    color: white;
+    border: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease;
+}
+
+.selected-date-task-toggle:hover {
+    background: #3d8bfd;
+}
+
+.selected-date-empty {
+    text-align: center;
+    color: #666;
+    padding: 40px 20px;
+    font-style: italic;
+}
+
+/* 动画效果 */
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* 悬浮模态框响应式设计 */
+@media (max-width: 768px) {
+    .floating-modal-content {
+        width: 95%;
+        max-width: 450px;
+        max-height: 70vh;
+        margin: 10px;
+    }
+    
+    .floating-modal-header {
+        padding: 15px 20px;
+    }
+    
+    .floating-modal-header h3 {
+        font-size: 1.2em;
+    }
+    
+    .floating-modal-body {
+        padding: 20px;
+        max-height: 50vh;
+    }
+    
+    .floating-task-item {
+        padding: 15px;
+        margin-bottom: 12px;
+    }
+    
+    .floating-task-controls {
+        top: 12px;
+        right: 12px;
+        gap: 6px;
+    }
+    
+    .floating-task-toggle,
+    .floating-task-delete {
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+    }
+}
+
+@media (max-width: 480px) {
+    .floating-modal-content {
+        width: 98%;
+        max-width: 400px;
+        max-height: 65vh;
+        margin: 5px;
+    }
+    
+    .floating-modal-header {
+        padding: 12px 15px;
+    }
+    
+    .floating-modal-header h3 {
+        font-size: 1.1em;
+    }
+    
+    .floating-close {
+        width: 30px;
+        height: 30px;
+        font-size: 24px;
+    }
+    
+    .floating-modal-body {
+        padding: 15px;
+        max-height: 45vh;
+    }
+    
+    .floating-task-item {
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+    
+    .floating-task-content {
+        font-size: 0.9em;
+    }
+    
+    .floating-task-time {
+        font-size: 0.8em;
+    }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .calendar-task-container {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .selected-date-tasks {
+        max-width: 100%;
+        max-height: 400px;
+    }
+    
+    .calendar {
+        max-width: 100%;
+    }
+}
+
 @keyframes completionShine {
     0% { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
@@ -1189,6 +1698,8 @@ select:focus {
     border: 1px solid rgba(0,0,0,0.05);
     position: relative;
     overflow: hidden;
+    width: 100%;
+    max-width: 100%;
 }
 
 .monthly-progress-section::before {
